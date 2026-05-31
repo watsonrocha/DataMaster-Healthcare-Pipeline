@@ -1,0 +1,81 @@
+{
+  "id": null,
+  "uid": "healthcare-rds-gold",
+  "title": "Healthcare Gold — RDS (AWS)",
+  "tags": ["healthcare", "gold", "rds", "aws"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total de pacientes (Gold)",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "rds-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(total_pacientes) AS total FROM gold_diagnostico;",
+          "datasource": { "type": "postgres", "uid": "rds-postgres" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 2,
+      "title": "Diagnósticos distintos",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "rds-postgres" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS diagnosticos FROM gold_diagnostico;",
+          "datasource": { "type": "postgres", "uid": "rds-postgres" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 3,
+      "title": "Pacientes por diagnóstico",
+      "type": "barchart",
+      "datasource": { "type": "postgres", "uid": "rds-postgres" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT diagnostico, total_pacientes FROM gold_diagnostico WHERE diagnostico IS NOT NULL ORDER BY total_pacientes DESC;",
+          "datasource": { "type": "postgres", "uid": "rds-postgres" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": {
+        "xField": "diagnostico",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Gold por diagnóstico (detalhe)",
+      "type": "table",
+      "datasource": { "type": "postgres", "uid": "rds-postgres" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 10 },
+      "targets": [
+        {
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT diagnostico, total_pacientes, ROUND(media_freq_cardiaca::numeric, 1) AS media_freq_cardiaca, ROUND(media_sistolica::numeric, 1) AS media_sistolica, ROUND(media_diastolica::numeric, 1) AS media_diastolica, ROUND(media_temperatura::numeric, 1) AS media_temperatura FROM gold_diagnostico ORDER BY total_pacientes DESC;",
+          "datasource": { "type": "postgres", "uid": "rds-postgres" }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Spark
+metastore_db/
+derby.log
+spark-warehouse/
+
+# Data Lake output
+output/
+data_lake/
+checkpoints/
+
+# Environment
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform-lean/.terraform/
+infrastructure/terraform-lean/*.tfstate
+infrastructure/terraform-lean/*.tfstate.*
+*.tfplan
+
+# Docker volumes
+pgdata/
+prometheus-data/
+grafana-data/
+
+# Coverage
+coverage.xml
+htmlcov/
+.coverage

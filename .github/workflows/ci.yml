@@ -1,0 +1,160 @@
+name: CI — Healthcare Data Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  JAVA_VERSION: "17"
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ruff mypy
+          pip install -r requirements.txt
+
+      - name: Ruff lint
+        run: ruff check DTM/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check DTM/ tests/
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-xdist
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            --cov=DTM \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -x
+        env:
+          SPARK_MASTER: "local[1]"
+          SIMULATED_RECORDS: "10"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  test-pyspark:
+    name: PySpark Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: healthcare
+          POSTGRES_USER: pipeline
+          POSTGRES_PASSWORD: pipeline123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest delta-spark
+
+      - name: Run PySpark integration tests
+        run: |
+          pytest tests/test_pyspark_integration.py \
+            -v \
+            --tb=short \
+            -x
+        env:
+          SPARK_MASTER: "local[2]"
+          SIMULATED_RECORDS: "20"
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_NAME: healthcare
+          DB_USER: pipeline
+          DB_PASSWORD: pipeline123
+
+  test-terraform:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+        working-directory: infrastructure/terraform
+
+      - name: Terraform init
+        run: terraform init -backend=false
+        working-directory: infrastructure/terraform
+
+      - name: Terraform validate
+        run: terraform validate
+        working-directory: infrastructure/terraform
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build pipeline image
+        run: docker build -t healthcare-pipeline:test -f infrastructure/docker/Dockerfile .
+
+      - name: Build docker-compose
+        run: docker compose -f docker-compose.prod.yml config

@@ -1,0 +1,13 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "W"]
+ignore = ["E402"]
+
+[lint.per-file-ignores]
+"DTM/DTM/config/__init__.py" = ["F401"]
+"DTM/DTM/src/data_extraction/api_extractor.py" = ["F401"]
+"DTM/DTM/src/data_extraction/data_generator.py" = ["F401"]
+"DTM/DTM/src/data_ingestion/streaming/stream_processor.py" = ["F401", "E501"]
+"tests/test_api_extractor.py" = ["F401"]
+"tests/test_data_generator.py" = ["F401"]

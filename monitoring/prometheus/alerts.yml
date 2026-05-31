@@ -1,0 +1,56 @@
+groups:
+  - name: pipeline_alerts
+    rules:
+      - alert: PipelineHighErrorRate
+        expr: rate(pipeline_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pipeline error rate is high"
+          description: "Error rate {{ $value }}/s in stage {{ $labels.stage }}"
+
+      - alert: PipelineStageTimeout
+        expr: pipeline_stage_duration_seconds > 600
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pipeline stage taking too long"
+          description: "Stage {{ $labels.stage }} has been running for {{ $value }}s"
+
+      - alert: HighNullRatio
+        expr: pipeline_data_quality_null_ratio > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High null ratio detected"
+          description: "Column {{ $labels.column }} in {{ $labels.layer }} has {{ $value | humanizePercentage }} nulls"
+
+      - alert: StreamingLagHigh
+        expr: pipeline_streaming_lag_seconds > 300
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Streaming lag is too high"
+          description: "Query {{ $labels.query }} lag is {{ $value }}s"
+
+      - alert: PipelineNotProcessing
+        expr: rate(pipeline_records_processed_total[10m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pipeline not processing records"
+          description: "No records processed in stage {{ $labels.stage }} for 15 minutes"
+
+      - alert: HighDuplicateRatio
+        expr: pipeline_data_quality_duplicate_ratio > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High duplicate ratio"
+          description: "Layer {{ $labels.layer }} has {{ $value | humanizePercentage }} duplicates"

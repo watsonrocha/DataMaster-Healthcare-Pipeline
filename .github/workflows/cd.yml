@@ -1,0 +1,89 @@
+name: CD — Deploy Pipeline
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: healthcare-pipeline
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $REGISTRY/$ECR_REPOSITORY:latest \
+            -f infrastructure/docker/Dockerfile .
+          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$ECR_REPOSITORY:latest
+
+  deploy-dev:
+    name: Deploy to Dev
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy EMR step
+        run: |
+          aws emr add-steps \
+            --cluster-id ${{ secrets.EMR_CLUSTER_ID }} \
+            --steps "Type=Spark,Name=healthcare-pipeline,ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--class,Main,s3://healthcare-datalake-dev/jars/pipeline.py]"
+
+  deploy-prod:
+    name: Deploy to Prod
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy EMR step
+        run: |
+          aws emr add-steps \
+            --cluster-id ${{ secrets.EMR_CLUSTER_ID_PROD }} \
+            --steps "Type=Spark,Name=healthcare-pipeline-prod,ActionOnFailure=CANCEL_AND_WAIT,Args=[--deploy-mode,cluster,--class,Main,s3://healthcare-datalake-prod/jars/pipeline.py]"
