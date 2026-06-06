@@ -431,7 +431,7 @@ class HealthcareDataPipeline:
     # EXECUÇÃO PRINCIPAL
     # ══════════════════════════════════════════════════════════════════════
     def save_to_postgres(self, df_gold, api_data):
-        """Salva dados processados no PostgreSQL (se disponível)."""
+        """Salva dados processados no PostgreSQL local + RDS AWS (se disponível)."""
         with self.metrics.timer("Salvamento PostgreSQL"):
             try:
                 from src.data_storage.database import (
@@ -442,21 +442,51 @@ class HealthcareDataPipeline:
 
                 init_database()
 
-                # Salva Gold no PostgreSQL
+                # Salva Gold no PostgreSQL local
                 save_dataframe_to_postgres(df_gold, "gold_diagnostico")
-                logger.info("Dados Gold salvos no PostgreSQL!")
+                logger.info("Dados Gold salvos no PostgreSQL local!")
 
-                # Salva dados de API no PostgreSQL
+                # Salva dados de API no PostgreSQL local
                 if api_data:
                     save_api_data_to_postgres(api_data)
-                    logger.info("Dados de APIs salvos no PostgreSQL!")
+                    logger.info("Dados de APIs salvos no PostgreSQL local!")
 
             except ImportError:
                 logger.warning("psycopg2 não instalado. Pulando PostgreSQL.")
                 logger.warning("Instale: pip install psycopg2-binary")
             except Exception as e:
-                logger.warning("PostgreSQL não disponível (não crítico): %s", e)
+                logger.warning("PostgreSQL local não disponível (não crítico): %s", e)
                 logger.warning("Para usar: docker-compose up -d")
+
+        # ── Replica para RDS AWS (se RDS_PASSWORD estiver definida) ──
+        self._save_to_rds(df_gold, api_data)
+
+    def _save_to_rds(self, df_gold, api_data):
+        """Replica dados para o RDS AWS. Silencioso se RDS_PASSWORD não estiver definida."""
+        import os
+
+        if not os.getenv("RDS_PASSWORD"):
+            logger.info("RDS_PASSWORD não definida. Pulando replicação para RDS AWS.")
+            return
+
+        try:
+            from src.data_storage.database import (
+                init_rds_database,
+                save_dataframe_to_rds,
+                save_api_data_to_rds,
+            )
+
+            init_rds_database()
+
+            save_dataframe_to_rds(df_gold, "gold_diagnostico")
+            logger.info("Dados Gold replicados no RDS AWS!")
+
+            if api_data:
+                save_api_data_to_rds(api_data)
+                logger.info("Dados de APIs replicados no RDS AWS!")
+
+        except Exception as e:
+            logger.warning("RDS AWS não disponível (não crítico): %s", e)
 
     def _print_requisitos_report(self, api_data, timing):
         """Imprime relatório de conformidade com os 8 requisitos do Data Master."""

@@ -12,19 +12,27 @@
   "panels": [
     {
       "id": 1,
-      "title": "Records Processed (rate)",
-      "type": "timeseries",
+      "title": "Records Processed",
+      "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(pipeline_records_processed_total[5m])",
-          "legendFormat": "{{ stage }} — {{ source }}"
+          "expr": "pipeline_records_processed_total",
+          "legendFormat": "{{ stage }} — {{ source }}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1000 },
+              { "color": "red", "value": 5000 }
+            ]
+          }
         }
       }
     },
@@ -37,7 +45,8 @@
       "targets": [
         {
           "expr": "pipeline_stage_duration_seconds_sum",
-          "legendFormat": "{{ stage }}"
+          "legendFormat": "{{ stage }}",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -62,7 +71,8 @@
       "targets": [
         {
           "expr": "pipeline_data_quality_null_ratio",
-          "legendFormat": "{{ column }} ({{ layer }})"
+          "legendFormat": "{{ column }} ({{ layer }})",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -82,19 +92,26 @@
     {
       "id": 4,
       "title": "Pipeline Errors",
-      "type": "timeseries",
+      "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
       "targets": [
         {
-          "expr": "rate(pipeline_errors_total[5m])",
-          "legendFormat": "{{ stage }} — {{ error_type }}"
+          "expr": "pipeline_errors_total",
+          "legendFormat": "{{ stage }} — {{ error_type }}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
-          "color": { "mode": "palette-classic" }
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
         }
       }
     },
@@ -107,7 +124,8 @@
       "targets": [
         {
           "expr": "pipeline_streaming_lag_seconds",
-          "legendFormat": "{{ query }}"
+          "legendFormat": "{{ query }}",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -132,7 +150,8 @@
       "targets": [
         {
           "expr": "pipeline_storage_bytes",
-          "legendFormat": "{{ layer }} ({{ format }})"
+          "legendFormat": "{{ layer }} ({{ format }})",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -143,27 +162,27 @@
     },
     {
       "id": 7,
-      "title": "Processing Latency (p50/p90/p99)",
-      "type": "timeseries",
+      "title": "Processing Latency (avg per stage)",
+      "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, rate(pipeline_stage_duration_seconds_bucket[5m]))",
-          "legendFormat": "p50"
-        },
-        {
-          "expr": "histogram_quantile(0.9, rate(pipeline_stage_duration_seconds_bucket[5m]))",
-          "legendFormat": "p90"
-        },
-        {
-          "expr": "histogram_quantile(0.99, rate(pipeline_stage_duration_seconds_bucket[5m]))",
-          "legendFormat": "p99"
+          "expr": "pipeline_stage_duration_seconds_sum / pipeline_stage_duration_seconds_count",
+          "legendFormat": "{{ stage }}",
+          "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "red", "value": 120 }
+            ]
+          }
         }
       }
     }

@@ -16,6 +16,11 @@ services:
       DB_USER: pipeline
       DB_PASSWORD: pipeline123
       ENCRYPTION_KEY: "${ENCRYPTION_KEY:-chave-segura-producao}"
+      # RDS AWS — defina RDS_PASSWORD no ambiente para replicar dados para a nuvem
+      RDS_HOST: ${RDS_HOST:-healthcare-lean-dev.c8xg4i8k0ii9.us-east-1.rds.amazonaws.com}
+      RDS_DB: ${RDS_DB:-healthcare}
+      RDS_USER: ${RDS_USER:-pipeline}
+      RDS_PASSWORD: ${RDS_PASSWORD:-}
       SIMULATED_RECORDS: "500"
       LOG_LEVEL: INFO
       # Observabilidade: expõe métricas em :8000 e mantém o container vivo
@@ -23,7 +28,7 @@ services:
       # para reexecutar o pipeline periodicamente e alimentar os gráficos.
       METRICS_ENABLED: "true"
       METRICS_KEEP_ALIVE: "true"
-      METRICS_LOOP_INTERVAL: "${METRICS_LOOP_INTERVAL:-0}"
+      METRICS_LOOP_INTERVAL: "${METRICS_LOOP_INTERVAL:-120}"
     volumes:
       - pipeline-output:/opt/pipeline/output
     depends_on:
