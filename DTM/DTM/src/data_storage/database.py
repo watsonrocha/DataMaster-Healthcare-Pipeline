@@ -102,6 +102,167 @@ def init_database():
     logger.info("Tabelas criadas com sucesso!")
 
 
+# ── RDS AWS ──────────────────────────────────────────────────────────────
+RDS_CONFIG = {
+    "host": os.getenv("RDS_HOST", "healthcare-lean-dev.c8xg4i8k0ii9.us-east-1.rds.amazonaws.com"),
+    "port": int(os.getenv("RDS_PORT", "5432")),
+    "database": os.getenv("RDS_DB", "healthcare"),
+    "user": os.getenv("RDS_USER", "pipeline"),
+    "password": os.getenv("RDS_PASSWORD", ""),
+}
+
+
+def _get_rds_connection():
+    """Cria conexão com RDS PostgreSQL na AWS."""
+    import psycopg2
+
+    if not RDS_CONFIG["password"]:
+        raise ValueError("RDS_PASSWORD não definida. Defina a variável de ambiente.")
+    return psycopg2.connect(**RDS_CONFIG, connect_timeout=10)
+
+
+def init_rds_database():
+    """Cria as tabelas no RDS (se não existirem)."""
+    logger.info("Inicializando banco de dados RDS (AWS)...")
+    conn = _get_rds_connection()
+    cur = conn.cursor()
+
+    for ddl in [
+        """CREATE TABLE IF NOT EXISTS gold_diagnostico (
+            id SERIAL PRIMARY KEY,
+            diagnostico VARCHAR(100),
+            total_pacientes INTEGER,
+            media_freq_cardiaca FLOAT,
+            media_sistolica FLOAT,
+            media_diastolica FLOAT,
+            media_temperatura FLOAT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS gold_estado (
+            id SERIAL PRIMARY KEY,
+            estado VARCHAR(5),
+            total_pacientes INTEGER,
+            media_freq_cardiaca FLOAT,
+            pacientes_pressao_alta INTEGER,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS api_estados_ibge (
+            id SERIAL PRIMARY KEY,
+            estado_id INTEGER,
+            sigla VARCHAR(5),
+            nome_estado VARCHAR(100),
+            regiao VARCHAR(50),
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS api_covid_brasil (
+            id SERIAL PRIMARY KEY,
+            pais VARCHAR(50),
+            casos_total BIGINT,
+            mortes_total BIGINT,
+            recuperados BIGINT,
+            ativos BIGINT,
+            casos_por_milhao FLOAT,
+            mortes_por_milhao FLOAT,
+            testes_total BIGINT,
+            populacao BIGINT,
+            data_atualizacao TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS api_covid_historico (
+            id SERIAL PRIMARY KEY,
+            data VARCHAR(20),
+            casos_acumulados BIGINT,
+            mortes_acumuladas BIGINT,
+            recuperados_acumulados BIGINT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )""",
+    ]:
+        cur.execute(ddl)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    logger.info("Tabelas RDS criadas com sucesso!")
+
+
+def save_dataframe_to_rds(df, table_name: str):
+    """Salva um DataFrame PySpark em uma tabela no RDS AWS."""
+    rows = df.collect()
+    if not rows:
+        logger.warning("DataFrame vazio, nada a salvar em %s (RDS)", table_name)
+        return
+
+    columns = df.columns
+    conn = _get_rds_connection()
+    cur = conn.cursor()
+
+    placeholders = ", ".join(["%s"] * len(columns))
+    col_names = ", ".join(columns)
+    sql = f"INSERT INTO {table_name} ({col_names}) VALUES ({placeholders})"
+
+    count = 0
+    for row in rows:
+        values = [row[c] for c in columns]
+        cur.execute(sql, values)
+        count += 1
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    logger.info("Salvos %d registros na tabela '%s' (RDS AWS)", count, table_name)
+
+
+def save_api_data_to_rds(api_data: dict[str, list[dict]]):
+    """Salva dados das APIs no RDS AWS."""
+    conn = _get_rds_connection()
+    cur = conn.cursor()
+
+    for rec in api_data.get("estados_ibge", []):
+        cur.execute(
+            "INSERT INTO api_estados_ibge (estado_id, sigla, nome_estado, regiao) VALUES (%s, %s, %s, %s)",
+            (rec["estado_id"], rec["sigla"], rec["nome_estado"], rec["regiao"]),
+        )
+
+    for rec in api_data.get("covid_brasil", []):
+        cur.execute(
+            "INSERT INTO api_covid_brasil "
+            "(pais, casos_total, mortes_total, recuperados, ativos, "
+            "casos_por_milhao, mortes_por_milhao, testes_total, populacao, data_atualizacao) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                rec["pais"],
+                rec["casos_total"],
+                rec["mortes_total"],
+                rec["recuperados"],
+                rec["ativos"],
+                rec["casos_por_milhao"],
+                rec["mortes_por_milhao"],
+                rec["testes_total"],
+                rec["populacao"],
+                rec["data_atualizacao"],
+            ),
+        )
+
+    for rec in api_data.get("covid_historico", []):
+        cur.execute(
+            "INSERT INTO api_covid_historico "
+            "(data, casos_acumulados, mortes_acumuladas, recuperados_acumulados) "
+            "VALUES (%s, %s, %s, %s)",
+            (rec["data"], rec["casos_acumulados"], rec["mortes_acumuladas"], rec["recuperados_acumulados"]),
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    total = (
+        len(api_data.get("estados_ibge", []))
+        + len(api_data.get("covid_brasil", []))
+        + len(api_data.get("covid_historico", []))
+    )
+    logger.info("API data: %d registros salvos no RDS AWS", total)
+
+
 def save_dataframe_to_postgres(df, table_name: str):
     """Salva um DataFrame PySpark em uma tabela PostgreSQL."""
     rows = df.collect()
