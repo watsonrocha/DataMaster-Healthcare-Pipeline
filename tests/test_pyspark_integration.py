@@ -19,16 +19,19 @@ from pyspark.sql import functions as F
 
 @pytest.fixture(scope="module")
 def spark():
-    """Cria SparkSession para testes."""
+    """Cria SparkSession para testes (a primeira inicialização leva ~30s)."""
+    print("\n⏳ Inicializando SparkSession (pode levar ~30 segundos)...")
     session = (
         SparkSession.builder.master("local[2]")
         .appName("healthcare-pipeline-tests")
         .config("spark.sql.shuffle.partitions", "2")
         .config("spark.ui.enabled", "false")
         .config("spark.driver.memory", "512m")
+        .config("spark.driver.host", "localhost")
         .getOrCreate()
     )
     session.sparkContext.setLogLevel("ERROR")
+    print("✅ SparkSession pronta!")
     yield session
     session.stop()
 
